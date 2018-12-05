@@ -86,6 +86,7 @@ While Not IsEmpty(ActiveCell.Offset(rowIndex, colIndex)) And rowIndex <= inputRo
     'instr will perform only when concat len is greater than input
     If Len(rowSet) >= Len(inputSeq) Then
         'do instr
+        matchCount = 0
         startPos = 1
         While (startPos + Len(inputSeq) - 1) <= Len(rowSet)
             pos = InStr(startPos, rowSet, inputSeq, vbTextCompare)
@@ -93,12 +94,12 @@ While Not IsEmpty(ActiveCell.Offset(rowIndex, colIndex)) And rowIndex <= inputRo
                 'when match - shift to end of current matching position
                 startPos = pos + Len(inputSeq)
                 matchCount = matchCount + 1
-                If searchResult.Exists(ActiveCell.Offset(1, 0).Text) Then
+                If searchResult.Exists(ActiveCell.Offset(rowIndex, 0).Text) Then
                     'update existing value, if present
-                    searchResult(ActiveCell.Offset(1, 0).Text) = matchCount
+                    searchResult(ActiveCell.Offset(rowIndex, 0).Text) = matchCount
                 Else
                     'add new key-value pair, if not present
-                    searchResult.Add ActiveCell.Offset(1, 0).Text, matchCount
+                    searchResult.Add ActiveCell.Offset(rowIndex, 0).Text, matchCount
                 End If
             Else
                 'when no match - shift to next starting index
