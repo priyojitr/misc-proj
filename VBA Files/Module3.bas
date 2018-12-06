@@ -16,7 +16,7 @@ Attribute MotifSearch.VB_Description = "This macro will search for a sequence pr
 Attribute MotifSearch.VB_ProcData.VB_Invoke_Func = "m\n14"
 
 Dim inputSeq As Variant
-Dim regEx As New RegExp
+Dim regex As New RegExp
 Dim expStr As String
 
 Application.ScreenUpdating = False
@@ -24,8 +24,8 @@ Application.ScreenUpdating = False
 Workbooks("PatternMatcher.xlsm").Activate
 inputSeq = Application.InputBox("Enter the sequence to search (A-Z). Use * as wildcard only")
 'data sanity - only a-z is allowed
-expStr = "^[A-Z]{2,}$"
-With regEx
+expStr = "^[A-Z*]{2,}$"
+With regex
     .Global = True
     .MultiLine = True
     .IgnoreCase = False
@@ -37,7 +37,7 @@ If (inputSeq = vbFalse) Then
     Exit Sub
 Else
     'data sanity check
-    If (regEx.Test(inputSeq)) Then
+    If (regex.Test(inputSeq)) Then
         'sanity check pass - start processing
         Call process(inputSeq)
     Else
@@ -49,7 +49,7 @@ Else
 End If
 End Sub
 
-'actual processing of data should begin from here, after sanity check comfirmed
+'actual processing of data should begin from here, after sanity check confirmed
 Function process(ByVal inputSeq As String)
 
 Dim inputRowSize As Integer
@@ -59,10 +59,9 @@ Dim colIndex As Integer
 Dim rowSet As String
 'collection will store 'input name-match count' (key-value pair) for each input
 Dim searchResult As New Scripting.Dictionary
-Dim flag As Boolean
-Dim startPos As Integer
-Dim rowname As String
-Dim matchCount As Integer
+Dim expStr As String
+Dim regex As New RegExp
+Dim match As Variant
 
 'select input sheet and starting cell
 ActiveWorkbook.Sheets("Sheet1").Activate
@@ -70,7 +69,7 @@ Range("A1").Select
 rowIndex = 1
 colIndex = 1
 rowSet = vbNullString
-matchCount = 0
+expStr = vbNullString
 'get row size & count
 inputRowSize = Range(ActiveCell, ActiveCell.End(xlToRight)).Count
 inputRowCount = Range(ActiveCell.Offset(1), ActiveCell.End(xlDown)).Count
@@ -83,29 +82,24 @@ While Not IsEmpty(ActiveCell.Offset(rowIndex, colIndex)) And rowIndex <= inputRo
         End If
         colIndex = colIndex + 1
     Wend
-    'instr will perform only when concat len is greater than input
+    'search will start only when concat len is greater than input else move to next
     If Len(rowSet) >= Len(inputSeq) Then
-        'do instr
-        matchCount = 0
-        startPos = 1
-        While (startPos + Len(inputSeq) - 1) <= Len(rowSet)
-            pos = InStr(startPos, rowSet, inputSeq, vbTextCompare)
-            If pos > 0 Then
-                'when match - shift to end of current matching position
-                startPos = pos + Len(inputSeq)
-                matchCount = matchCount + 1
-                If searchResult.Exists(ActiveCell.Offset(rowIndex, 0).Text) Then
-                    'update existing value, if present
-                    searchResult(ActiveCell.Offset(rowIndex, 0).Text) = matchCount
-                Else
-                    'add new key-value pair, if not present
-                    searchResult.Add ActiveCell.Offset(rowIndex, 0).Text, matchCount
-                End If
-            Else
-                'when no match - shift to next starting index
-                startPos = startPos + 1
-            End If
-        Wend
+        If InStr(inputSeq, "*") Then
+            expStr = Replace(inputSeq, "*", "(.)")
+        Else
+            expStr = inputSeq
+        End If
+        With regex
+            .Global = True
+            .IgnoreCase = True
+            .MultiLine = True
+            .Pattern = expStr
+        End With
+        Set match = regex.Execute(rowSet)
+        If match.Count > 0 Then
+            'add to collection
+            searchResult.Add ActiveCell.Offset(rowIndex, 0).Text, match.Count
+        End If
     End If
     'reset all loop data
     rowSet = vbNullString
@@ -138,7 +132,18 @@ Dim rowIndex As Integer
 'header row count is 2, hence result should start from 3
 colIndex = 0
 rowIndex = 2
+'avoid wild character in sheet name
+If InStr(inputSeq, "*") > 0 Then
+    inputSeq = Replace(inputSeq, "*", "-")
+End If
 sheetName = Left("Motif_ " & inputSeq, 30)
+'avoid duplicate sheet name, remove existing and create new one
+For Each ws In ActiveWorkbook.Worksheets
+    If InStr(ws.Name, sheetName) > 0 Then
+        Application.DisplayAlerts = False
+        ActiveWorkbook.Sheets(ws.Name).Delete
+    End If
+Next
 'create new sheet for motif search result
 With ActiveWorkbook
     Worksheets.Add(after:=Worksheets(Worksheets.Count)) _
@@ -153,7 +158,6 @@ With ActiveCell.Offset(0, 1)
     .Font.Bold = True
     .Interior.Color = RGB(200, 220, 0)
 End With
-
 ActiveCell.Offset(1, 0).Value2 = "Name"
 ActiveCell.Offset(1, 1).Value2 = "Count"
 'start filling result from 3rd row
