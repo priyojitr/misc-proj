@@ -3,4 +3,4 @@
 These files have been directly exported from VBA.
 
 Version Update:
-> Current version include Motif search.
+> Current version include Motif search (with wild card search).
